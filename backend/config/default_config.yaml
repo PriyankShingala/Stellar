@@ -1,0 +1,29 @@
+system:
+  name: "Stellar-AI / PRAYOG-AI"
+  version: "1.0.0"
+  offline_mode: true
+
+camera:
+  device_id: 0
+  frame_width: 1280
+  frame_height: 720
+  fps: 30
+
+ai:
+  device: "cpu" # Options: cpu, cuda
+  confidence_threshold: 0.5
+  iou_threshold: 0.45
+  model_dir: "ai/models"
+
+alerts:
+  tts_enabled: true
+  tts_engine: "pyttsx3"
+  speech_rate: 150
+  volume: 1.0
+
+database:
+  db_path: "database/stellar_audit.db"
+
+logging:
+  log_dir: "backend/logs"
+  log_level: "INFO"

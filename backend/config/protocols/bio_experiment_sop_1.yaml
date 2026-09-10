@@ -1,0 +1,40 @@
+protocol_id: "SOP-BIO-001"
+title: "On-Board Biological Sample Extraction & Sealing"
+description: "Standard Operating Procedure for extracting bio-samples and sealing test vials during BAS orbital experiments."
+version: "1.0"
+
+steps:
+  - step_number: 1
+    step_id: "STEP_SANITIZE"
+    action_name: "Sanitize gloved hands"
+    required_objects: ["gloves", "sanitizer_dispenser"]
+    max_duration_seconds: 30
+    mandatory: true
+
+  - step_number: 2
+    step_id: "STEP_PICK_VIAL"
+    action_name: "Pick sample vial A from storage tray"
+    required_objects: ["sample_vial", "storage_tray"]
+    max_duration_seconds: 45
+    mandatory: true
+
+  - step_number: 3
+    step_id: "STEP_PIPETTE_TRANSFER"
+    action_name: "Transfer 5ml reagent using micro-pipette"
+    required_objects: ["micro_pipette", "sample_vial", "reagent_bottle"]
+    max_duration_seconds: 120
+    mandatory: true
+
+  - step_number: 4
+    step_id: "STEP_SEAL_VIAL"
+    action_name: "Cap and seal sample vial A securely"
+    required_objects: ["sample_vial", "vial_cap"]
+    max_duration_seconds: 40
+    mandatory: true
+
+  - step_number: 5
+    step_id: "STEP_SECURE_STORAGE"
+    action_name: "Place sealed vial into thermal containment unit"
+    required_objects: ["sample_vial", "thermal_containment_unit"]
+    max_duration_seconds: 60
+    mandatory: true

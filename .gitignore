@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AI Models & Checkpoints (Large Files)
+ai/models/**/*.pt
+ai/models/**/*.pth
+ai/models/**/*.onnx
+ai/models/**/*.engine
+ai/models/**/*.weights
+ai/models/**/*.bin
+
+# Datasets (Large Media Files)
+dataset/raw/*
+dataset/annotated/*
+!dataset/**/.gitkeep
+!dataset/**/README.md
+
+# Databases & Runtime Logs
+database/*.db
+database/*.sqlite
+backend/logs/*
+data/
+*.log
+
+# OS generated
+.DS_Store
+Thumbs.db
