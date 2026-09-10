@@ -56,3 +56,5 @@ data/
 # OS generated
 .DS_Store
 Thumbs.db
+
+yolov8n.pt
