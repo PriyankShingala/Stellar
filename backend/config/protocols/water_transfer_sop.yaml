@@ -1,0 +1,40 @@
+﻿protocol_id: "SOP-WATER-001"
+title: "Bottle and Glass Water Transfer"
+description: "Standard Operating Procedure for transfer of water from bottle to glass during BAS microgravity experiments."
+version: "1.0"
+
+steps:
+  - step_number: 1
+    step_id: "STEP_BOTTLE_PICKUP"
+    action_name: "bottle_pickup"
+    required_objects: ["bottle"]
+    max_duration_seconds: 30
+    mandatory: true
+
+  - step_number: 2
+    step_id: "STEP_GLASS_PICKUP"
+    action_name: "glass_pickup"
+    required_objects: ["glass"]
+    max_duration_seconds: 30
+    mandatory: true
+
+  - step_number: 3
+    step_id: "STEP_POUR_WATER"
+    action_name: "pouring"
+    required_objects: ["bottle", "glass"]
+    max_duration_seconds: 45
+    mandatory: true
+
+  - step_number: 4
+    step_id: "STEP_GLASS_PUT_DOWN"
+    action_name: "glass_put_down"
+    required_objects: ["glass"]
+    max_duration_seconds: 30
+    mandatory: true
+
+  - step_number: 5
+    step_id: "STEP_BOTTLE_PUT_DOWN"
+    action_name: "bottle_put_down"
+    required_objects: ["bottle"]
+    max_duration_seconds: 30
+    mandatory: true
