@@ -13,14 +13,20 @@ import cv2
 
 logger = logging.getLogger("ObjectDetector")
 
+from typing import Optional
+
 # Explicit mapping from COCO dataset class IDs to unified Stellar MVP object labels
 # COCO Class 39: bottle      -> Stellar "bottle"
 # COCO Class 40: wine glass -> Stellar "glass"
 # COCO Class 41: cup        -> Stellar "glass"
+# COCO Class 45: bowl       -> Stellar "glass" (fallback for tumblers, wide cups/glasses)
+# COCO Class 75: vase       -> Stellar "glass" (fallback for tall glassware / carafes)
 COCO_TO_STELLAR_MAPPING = {
     39: "bottle",
     40: "glass",
-    41: "glass"
+    41: "glass",
+    45: "glass",
+    75: "glass"
 }
 
 
@@ -56,20 +62,26 @@ class ObjectDetector:
     def __init__(
         self,
         model_path: str = "ai/models/object_detection/yolov8n.pt",
-        conf_threshold: float = 0.5,
-        bottle_conf_threshold: float = 0.38,
-        bottle_persistence_frames: int = 5
+        conf_threshold: float = 0.20,
+        glass_conf_threshold: Optional[float] = None,
+        bottle_conf_threshold: Optional[float] = None,
+        bottle_persistence_frames: int = 15,
+        glass_persistence_frames: int = 15,
     ):
         self.model_path = model_path
-        self.glass_conf_threshold = conf_threshold
-        self.bottle_conf_threshold = bottle_conf_threshold
+        self.conf_threshold = conf_threshold
+        self.glass_conf_threshold = glass_conf_threshold if glass_conf_threshold is not None else conf_threshold
+        self.bottle_conf_threshold = bottle_conf_threshold if bottle_conf_threshold is not None else conf_threshold
         self.bottle_persistence_frames = bottle_persistence_frames
+        self.glass_persistence_frames = glass_persistence_frames
         
         self.model = None
         
         # Temporal persistence
         self._last_bottle_det = None
         self._bottle_missing_frames = 0
+        self._last_glass_det = None
+        self._glass_missing_frames = 0
         
         self._init_model()
 
@@ -81,9 +93,13 @@ class ObjectDetector:
             # Check primary model path, fallback to default 'yolov8n.pt'
             target_weights = self.model_path
             if not os.path.exists(target_weights):
-                alt_weights = "yolov8n.pt"
-                logger.info(f"Primary model path '{target_weights}' not found locally. Trying '{alt_weights}'...")
-                target_weights = alt_weights
+                root_weights = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "yolov8n.pt"))
+                if os.path.exists(root_weights):
+                    target_weights = root_weights
+                elif os.path.exists("yolov8n.pt"):
+                    target_weights = "yolov8n.pt"
+                else:
+                    target_weights = "yolov8n.pt"
 
             self.model = YOLO(target_weights)
             logger.info(f"Object Detector initialized successfully with weights: {target_weights}")
@@ -136,7 +152,12 @@ class ObjectDetector:
                         continue
 
                     if stellar_label:
-                        xyxy = box.xyxy[0].cpu().numpy().astype(int).tolist()
+                        if hasattr(box.xyxy[0], "cpu"):
+                            xyxy = box.xyxy[0].cpu().numpy().astype(int).tolist()
+                        elif hasattr(box.xyxy[0], "numpy"):
+                            xyxy = box.xyxy[0].numpy().astype(int).tolist()
+                        else:
+                            xyxy = np.array(box.xyxy[0]).astype(int).tolist()
                         detections.append({
                             "label": stellar_label,
                             "bbox": xyxy,  # [x1, y1, x2, y2]
@@ -159,6 +180,20 @@ class ObjectDetector:
                     detections.append(self._last_bottle_det.copy())
                 else:
                     self._last_bottle_det = None
+
+        # Handle glass temporal persistence
+        glass_detected = any(d["label"] == "glass" for d in detections)
+        if glass_detected:
+            best_glass = max([d for d in detections if d["label"] == "glass"], key=lambda x: x["confidence"])
+            self._last_glass_det = best_glass.copy()
+            self._glass_missing_frames = 0
+        else:
+            if self._last_glass_det is not None:
+                self._glass_missing_frames += 1
+                if self._glass_missing_frames <= self.glass_persistence_frames:
+                    detections.append(self._last_glass_det.copy())
+                else:
+                    self._last_glass_det = None
 
         # Intra-class IoU deduplication (suppress duplicate overlapping glass/bottle boxes)
         if len(detections) > 1:

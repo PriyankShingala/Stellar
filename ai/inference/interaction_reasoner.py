@@ -17,15 +17,15 @@ from typing import Dict, List, Optional, Tuple, Any
 logger = logging.getLogger("InteractionReasoner")
 
 # Geometric and Temporal Thresholds
-DEFAULT_GRASP_THRESHOLD_PX = 65.0      # Maximum Euclidean distance (px) from wrist to bbox to count as grasp
+DEFAULT_GRASP_THRESHOLD_PX = 75.0      # Maximum Euclidean distance (px) from wrist to bbox to count as grasp
 MAX_MISSING_DETECTION_GRACE = 15       # Consecutive missing YOLO frames tolerated while object is held (approx 0.5-0.6s)
 MIN_HELD_FRAMES_FOR_PICKUP = 2         # Consecutive proximity frames required to trigger pickup
 MIN_SEPARATED_FRAMES_FOR_PUTDOWN = 3   # Consecutive separated frames required to trigger put down
 
 # Pouring Geometry Thresholds
-POUR_MAX_HORIZONTAL_DIST_PX = 120.0    # Stricter horizontal alignment tolerance (was 180.0)
-POUR_TILT_MAX_ASPECT_RATIO = 1.10      # Stricter aspect ratio (h/w) <= 1.10 for true horizontal tilt (was 1.45)
-MIN_POURING_FRAMES = 12                # Consecutive frames satisfying pouring geometry to emit event (approx 0.4s, was 2)
+POUR_MAX_HORIZONTAL_DIST_PX = 160.0    # Strict horizontal alignment tolerance to prevent room-wide false triggers
+POUR_TILT_MAX_ASPECT_RATIO = 1.35      # Requires genuine physical tilt (h/w <= 1.35; upright bottles are > 1.8)
+MIN_POURING_FRAMES = 5                 # 5 sustained frames (approx 0.25s) to eliminate false transient events
 
 
 def point_to_bbox_distance(px: float, py: float, bbox: List[int]) -> float:
@@ -287,6 +287,20 @@ class InteractionReasoner:
 
         active_bbox = detection["bbox"] if detection else obj["last_bbox"]
 
+        # Hand-following for held object when YOLO temporarily drops detection
+        if detection is None and obj["state"] == "HELD" and obj["held_by"] and wrists.get(obj["held_by"]):
+            w_pos = wrists[obj["held_by"]]
+            if obj["last_bbox"] is not None:
+                b_w = obj["last_bbox"][2] - obj["last_bbox"][0]
+                b_h = obj["last_bbox"][3] - obj["last_bbox"][1]
+                active_bbox = [
+                    int(w_pos[0] - b_w / 2),
+                    int(w_pos[1] - b_h / 2),
+                    int(w_pos[0] + b_w / 2),
+                    int(w_pos[1] + b_h / 2)
+                ]
+                obj["last_bbox"] = active_bbox
+
         if active_bbox is not None:
             for hand in ["left", "right"]:
                 w_pos = wrists.get(hand)
@@ -309,10 +323,16 @@ class InteractionReasoner:
                 obj["consecutive_separated_frames"] = 0
 
                 if obj["state"] == "IDLE" and obj["consecutive_close_frames"] >= MIN_HELD_FRAMES_FOR_PICKUP:
-                    obj["state"] = "HELD"
-                    obj["held_by"] = closest_hand
-                    events.append(f"{label}_pickup")
-                    logger.info(f"Event triggered: {label}_pickup by {closest_hand} hand (dist={min_dist:.1f}px)")
+                    other_label = "bottle" if label == "glass" else "glass"
+                    other_obj = self._objects[other_label]
+                    # One hand cannot hold both bottle and glass simultaneously
+                    if other_obj["state"] == "HELD" and other_obj["held_by"] == closest_hand:
+                        obj["consecutive_close_frames"] = 0
+                    else:
+                        obj["state"] = "HELD"
+                        obj["held_by"] = closest_hand
+                        events.append(f"{label}_pickup")
+                        logger.info(f"Event triggered: {label}_pickup by {closest_hand} hand (dist={min_dist:.1f}px)")
                 elif obj["state"] == "HELD":
                     if closest_hand is not None:
                         obj["held_by"] = closest_hand
@@ -381,14 +401,14 @@ class InteractionReasoner:
             "is_pouring_geometry": False
         }
 
-        # 1. Bottle must be held
+        # 1. Bottle must be held by hand
         if bottle["state"] != "HELD" or bottle["last_bbox"] is None:
             self._consecutive_pouring_frames = 0
             self._is_pouring = False
             return None, False, spatial_info
 
-        # 2. Glass must be present (fresh or cached within 6 frames of dropout)
-        if glass["last_bbox"] is None or glass["missing_frames"] > 6:
+        # 2. Glass must be present (fresh or cached within missing_grace_frames)
+        if glass["last_bbox"] is None or glass["missing_frames"] > self.missing_grace_frames:
             self._consecutive_pouring_frames = 0
             self._is_pouring = False
             return None, False, spatial_info
@@ -399,17 +419,16 @@ class InteractionReasoner:
         b_cx, b_cy = bbox_center(b_bbox)
         g_cx, g_cy = bbox_center(g_bbox)
 
-        # Horizontal distance between bottle and glass centers
+        # Horizontal distance and bounding box gap
         horiz_dist = abs(b_cx - g_cx)
+        horiz_gap = max(0.0, max(b_bbox[0] - g_bbox[2], g_bbox[0] - b_bbox[2]))
         spatial_info["bottle_glass_distance"] = round(math.hypot(b_cx - g_cx, b_cy - g_cy), 2)
 
-        # Vertical check:
-        # Bottle center must be strictly above glass center (b_cy < g_cy)
-        # AND bottle top strictly above glass top (b_bbox[1] < g_bbox[1])
+        # Vertical check: Bottle center above glass center AND bottle top above glass top
         bottle_above = (b_cy < g_cy) and (b_bbox[1] < g_bbox[1])
         spatial_info["bottle_above_glass"] = bottle_above
 
-        # Tilt check: Aspect ratio (h/w) drops when bottle tilts horizontally (h/w <= 1.10)
+        # Tilt check: Aspect ratio (h/w) drops when bottle tilts horizontally (h/w <= 1.35)
         ar = bbox_aspect_ratio(b_bbox)
         spatial_info["bottle_aspect_ratio"] = round(ar, 3)
         is_tilted = (ar <= POUR_TILT_MAX_ASPECT_RATIO)
@@ -418,7 +437,7 @@ class InteractionReasoner:
         # Combined Pouring Geometry Check
         is_pouring_geom = (
             bottle_above and
-            (horiz_dist <= POUR_MAX_HORIZONTAL_DIST_PX) and
+            (horiz_dist <= POUR_MAX_HORIZONTAL_DIST_PX or horiz_gap <= 40.0) and
             is_tilted
         )
         spatial_info["is_pouring_geometry"] = is_pouring_geom
@@ -427,16 +446,16 @@ class InteractionReasoner:
         if is_pouring_geom:
             self._consecutive_pouring_frames += 1
             if self._consecutive_pouring_frames >= self.min_pouring_frames:
-                if not self._is_pouring:
-                    self._is_pouring = True
-                    event = "pouring"
-                    self._milestones["poured"] = True
-                    logger.info(
-                        f"Event triggered: pouring (bottle tilted over glass for {self._consecutive_pouring_frames} frames)"
-                    )
+                self._is_pouring = True
+                self._milestones["poured"] = True
+                event = "pouring"
+                logger.info(
+                    f"Event triggered: pouring (bottle tilted over glass for {self._consecutive_pouring_frames} frames)"
+                )
         else:
-            self._consecutive_pouring_frames = 0
-            self._is_pouring = False
+            self._consecutive_pouring_frames = max(0, self._consecutive_pouring_frames - 1)
+            if self._consecutive_pouring_frames == 0:
+                self._is_pouring = False
 
         return event, self._is_pouring, spatial_info
 

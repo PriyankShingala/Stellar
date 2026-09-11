@@ -484,22 +484,18 @@ class TestInteractionReasoner(unittest.TestCase):
         self.reasoner.update(p_pick, objs_pickup)
         self.reasoner.update(p_pick, objs_pickup)
 
-        # 2. Pour for 5 frames with both detected
-        for _ in range(5):
-            self.reasoner.update(p_pour, objs_pour_both)
+        # 2. Pour for min_pouring_frames
+        for i in range(self.reasoner.min_pouring_frames):
+            res_pour = self.reasoner.update(p_pour, objs_pour_both)
+            
+        self.assertIn("pouring", res_pour["events"])
+        self.assertIn("pouring", res_pour["active_states"])
 
         # 3. Glass detection drops out for 3 frames (<= 6 frames)
         for _ in range(3):
             res_drop = self.reasoner.update(p_pour, objs_pour_only_bottle)
             self.assertTrue(res_drop["spatial_relations"]["is_pouring_geometry"])
-
-        # 4. Pour for remaining frames to reach 12 total frames
-        for _ in range(4):
-            res_end = self.reasoner.update(p_pour, objs_pour_both)
-
-        # Pouring should successfully complete!
-        self.assertIn("pouring", res_end["events"])
-        self.assertIn("pouring", res_end["active_states"])
+            self.assertIn("pouring", res_drop["active_states"])
 
     def test_sequence_aware_put_down_logic(self):
         """Verify put_down events require their sequence milestones (pouring/glass_put_down) to be completed."""

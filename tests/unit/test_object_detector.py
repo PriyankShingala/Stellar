@@ -19,6 +19,8 @@ class TestObjectDetector(unittest.TestCase):
         self.assertEqual(COCO_TO_STELLAR_MAPPING.get(39), "bottle")
         self.assertEqual(COCO_TO_STELLAR_MAPPING.get(40), "glass")
         self.assertEqual(COCO_TO_STELLAR_MAPPING.get(41), "glass")
+        self.assertEqual(COCO_TO_STELLAR_MAPPING.get(45), "glass")
+        self.assertEqual(COCO_TO_STELLAR_MAPPING.get(75), "glass")
         # Ensure only bottle and glass are mapped
         stellar_labels = set(COCO_TO_STELLAR_MAPPING.values())
         self.assertEqual(stellar_labels, {"bottle", "glass"})
@@ -174,6 +176,56 @@ class TestObjectDetector(unittest.TestCase):
         self.assertEqual(len(dets4), 1)
 
         # Frame 5: Model empty, persistence expired (missing = 4 > 3)
+        dets5 = detector.detect(self.dummy_frame)
+        self.assertEqual(len(dets5), 0)
+
+    def test_glass_temporal_persistence(self):
+        """Verify a missing glass is persisted for up to persistence_frames frames."""
+        detector = ObjectDetector(conf_threshold=0.5, glass_conf_threshold=0.2, glass_persistence_frames=3)
+        
+        class MockResult:
+            class MockBox:
+                def __init__(self, cls_id, conf, xyxy):
+                    class Item:
+                        def __init__(self, val): self.val = val
+                        def item(self): return self.val
+                    self.cls = [Item(cls_id)]
+                    self.conf = [Item(conf)]
+                    self.xyxy = [np.array(xyxy)]
+            
+            def __init__(self, boxes):
+                self.boxes = boxes
+
+        class MockModel:
+            def __init__(self, results_seq):
+                self.results_seq = results_seq
+                self.call_idx = 0
+            def __call__(self, frame, **kwargs):
+                res = self.results_seq[self.call_idx]
+                self.call_idx += 1
+                return res
+
+        # Frame 1: Model detects glass (class 40)
+        res1 = [MockResult([MockResult.MockBox(40, 0.75, [200, 200, 300, 300])])]
+        res_empty = []
+        
+        detector.model = MockModel([res1, res_empty, res_empty, res_empty, res_empty])
+        
+        dets1 = detector.detect(self.dummy_frame)
+        self.assertEqual(len(dets1), 1)
+        self.assertEqual(dets1[0]["label"], "glass")
+        
+        dets2 = detector.detect(self.dummy_frame)
+        self.assertEqual(len(dets2), 1)
+        self.assertEqual(dets2[0]["label"], "glass")
+        
+        dets3 = detector.detect(self.dummy_frame)
+        self.assertEqual(len(dets3), 1)
+        
+        dets4 = detector.detect(self.dummy_frame)
+        self.assertEqual(len(dets4), 1)
+        
+        # Expired on 4th missing frame (> 3)
         dets5 = detector.detect(self.dummy_frame)
         self.assertEqual(len(dets5), 0)
 

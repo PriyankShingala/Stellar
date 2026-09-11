@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar AI | BAS Experiment Assistant</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <nav class="sidebar">
+            <div class="brand">
+                <h2>STELLAR AI</h2>
+            </div>
+            <ul>
+                <li><a href="#" onclick="nav('home')">Mission Home</a></li>
+                <li><a href="#" onclick="nav('experiments')">Experiments</a></li>
+                <li><a href="#" onclick="nav('monitor')">Live Monitor</a></li>
+                <li><a href="#" onclick="nav('log')">Mission Log</a></li>
+                <li><a href="#" onclick="nav('settings')">Settings</a></li>
+            </ul>
+        </nav>
+        
+        <main class="content">
+            <!-- 1. MISSION HOME -->
+            <section id="view-home" class="view active">
+                <h1>Stellar AI Dashboard</h1>
+                <p>On-Board BAS Experiment Assistant.</p>
+                <div class="card">
+                    <h3>Status</h3>
+                    <p id="home-status-text">System Idle</p>
+                    <button class="btn primary" onclick="nav('experiments')">Select Experiment</button>
+                </div>
+            </section>
+
+            <!-- 2. EXPERIMENTS -->
+            <section id="view-experiments" class="view">
+                <h1>Available Experiments</h1>
+                <div class="card">
+                    <h2>Bottle and Glass Water Transfer</h2>
+                    <p><strong>Protocol ID:</strong> SOP-WATER-001</p>
+                    <ol>
+                        <li>Bottle Pickup</li>
+                        <li>Glass Pickup</li>
+                        <li>Pouring</li>
+                        <li>Glass Put Down</li>
+                        <li>Bottle Put Down</li>
+                    </ol>
+                    <button class="btn primary" onclick="selectExperiment('SOP-WATER-001')">Start Experiment</button>
+                </div>
+            </section>
+
+            <!-- 3. LIVE MONITOR -->
+            <section id="view-monitor" class="view">
+                <h1>Live Monitor</h1>
+                
+                <div id="error-banner" class="alert error hidden"></div>
+                
+                <div class="monitor-grid">
+                    <div class="camera-panel card">
+                        <h3>Camera Feed</h3>
+                        <img id="video-stream" src="" alt="Video Stream">
+                        <div class="controls mt-2">
+                            <button id="btn-start" class="btn success" onclick="startPipeline()">Start</button>
+                            <button id="btn-stop" class="btn warning" onclick="stopPipeline()">Stop</button>
+                            <button id="btn-reset" class="btn danger" onclick="resetPipeline()">Reset</button>
+                        </div>
+                    </div>
+                    
+                    <div class="telemetry-panel">
+                        <div class="card mb-2">
+                            <h3>Mission Status</h3>
+                            <h2 id="mission-complete-msg" class="hidden success-text">MISSION COMPLETE (5/5)</h2>
+                            <ul id="timeline" class="timeline">
+                                <li id="step-1">Step 1: Bottle Pickup <span class="badge">PENDING</span></li>
+                                <li id="step-2">Step 2: Glass Pickup <span class="badge">LOCKED</span></li>
+                                <li id="step-3">Step 3: Pouring <span class="badge">LOCKED</span></li>
+                                <li id="step-4">Step 4: Glass Put Down <span class="badge">LOCKED</span></li>
+                                <li id="step-5">Step 5: Bottle Put Down <span class="badge">LOCKED</span></li>
+                            </ul>
+                        </div>
+                        
+                        <div class="card">
+                            <h3>Active States</h3>
+                            <div id="active-states">None</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. MISSION LOG -->
+            <section id="view-log" class="view">
+                <h1>Mission Log</h1>
+                <div class="card log-container">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Event</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body">
+                            <!-- Logs injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- 5. MISSION REPORT -->
+            <section id="view-report" class="view">
+                <h1>Mission Report</h1>
+                <div class="card">
+                    <h2>Experiment: SOP-WATER-001</h2>
+                    <h3 class="success-text">Completed 5/5 Steps Successfully</h3>
+                    <p>The AI Sequence Validator has certified this run.</p>
+                    <button class="btn primary mt-2" onclick="nav('home')">Finish</button>
+                    <button class="btn" onclick="resetPipeline(); nav('experiments')">Start New Experiment</button>
+                </div>
+            </section>
+
+            <!-- 6. SETTINGS -->
+            <section id="view-settings" class="view">
+                <h1>Settings</h1>
+                <div class="card">
+                    <p>Basic configuration parameters.</p>
+                    <label>Camera Index:</label>
+                    <select id="camera-idx">
+                        <option value="0">Camera 0</option>
+                        <option value="1">Camera 1</option>
+                    </select>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="/js/app.js"></script>
+</body>
+</html>
